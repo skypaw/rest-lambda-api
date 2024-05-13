@@ -5,7 +5,9 @@ import boto3
 
 from responses import success_response, bad_request_response, not_found_response
 
-DYNAMODB_CLIENT = boto3.client("dynamodb")
+DYNAMODB_CLIENT = boto3.client(
+    "dynamodb"
+)  # client initialized on script loading for warm lambda run
 TABLE_NAME = os.environ["TABLE_NAME"]
 FAVOURITE_FOR_USER = {"type": {"S": "user"}, "id": "uuidv4"}
 
