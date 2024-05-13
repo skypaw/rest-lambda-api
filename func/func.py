@@ -25,13 +25,13 @@ def put_item(item):
 def list_characters():
     characters_db = DYNAMODB_CLIENT.query(
         TableName=TABLE_NAME,
-        ExpressionAttributeNames={'#t': 'type'},
-        ExpressionAttributeValues={':a': {'S': 'character'}},
-        KeyConditionExpression='#t = :a'
+        ExpressionAttributeNames={"#t": "type"},
+        ExpressionAttributeValues={":a": {"S": "character"}},
+        KeyConditionExpression="#t = :a",
     )
     characters = []
-    for character in characters_db['Items']:
-        characters.append(character['id']['S'])
+    for character in characters_db["Items"]:
+        characters.append(character["id"]["S"])
     return success_response(characters)
 
 
@@ -40,26 +40,54 @@ def unpack_favourite(item):
 
 
 def favourites(event):
-    method = event.get('httpMethod')
-    if method == 'GET':
+    method = event.get("httpMethod")
+    if method == "GET":
         item = get_item(FAVOURITE_FOR_USER)
         return success_response(item)
-    if method == 'POST':
+    if method == "POST":
         try:
             body = decode_body(event)["add"]
         except (json.JSONDecodeError, KeyError, TypeError):
             return bad_request_response('body syntax: {"add": "character_name"}')
-        character = get_item({'type': {'S': 'character'}, 'id': {'S': body}})
+        character = get_item({"type": {"S": "character"}, "id": {"S": body}})
 
         if character.get("Item"):
             favourites_db = get_item(FAVOURITE_FOR_USER)
             favourite_characters = {i for i in unpack_favourite(favourites_db)}
             favourite_characters.add(body)
 
-            put_item({'favourites': {'SS': list(favourite_characters)}, **FAVOURITE_FOR_USER})
-            return success_response('Favourite character added')
-        return not_found_response('Character not found')
+            put_item(
+                {"favourites": {"SS": list(favourite_characters)}, **FAVOURITE_FOR_USER}
+            )
+            return success_response("Favourite character added")
+        return not_found_response("Character not found")
+    if method == "DELETE":
+        try:
+            body = decode_body(event)["remove"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return bad_request_response('body syntax: {"remove": "character_name"}')
+        favourites_db = get_item(FAVOURITE_FOR_USER)
+        favourite_characters = {i for i in unpack_favourite(favourites_db)}
+        favourite_characters.remove(body)
+
+        put_item(
+            {"favourites": {"SS": list(favourite_characters)}, **FAVOURITE_FOR_USER}
+        )
+        return success_response("Favourite character removed")
 
 
-def handler(event, context):
-    pass
+def handler(event, _):
+    path = event.get("path")
+
+    if path == "/favourites":
+        return favourites(event)
+    if path == "list":
+        return list_characters()
+
+    return success_response(
+        {
+            "Available GET endpoints": ["/list", "/favourites"],
+            "Available POST endpoints": ["/favourites"],
+            "Available DELETE endpoints": ["/favourites"],
+        }
+    )
